@@ -23,7 +23,19 @@
 #ifndef _CLRRANDOM_H_
 #define _CLRRANDOM_H_
 
+// Taken from <intsafe.h>
+#define INT_MAX         2147483647
+
 #include <math.h>
+#include <profileapi.h> // needed for 'QueryPerformanceCounter'
+#include <sysinfoapi.h> // needed for 'GetTickCount'
+#include <processthreadsapi.h> // needed for 'GetCurrentThreadId()' and 'GetCurrentProcessId()'
+#include <stdio.h>
+
+// Taken from debugmarcos.h (under \src\inc)
+#if !defined(_ASSERTE)
+#define _ASSERTE(expr) if (!(expr)) { printf("%s - %s - %s", __FILE__, __LINE__, #expr); }
+#endif  // !_ASSERTE
 
 //
 // Forbid the use of srand()/rand(), as these are globally shared facilities and our use of them would
@@ -71,13 +83,13 @@ public:
 
     CLRRandom()
     {
-        LIMITED_METHOD_CONTRACT;
+        //LIMITED_METHOD_CONTRACT;
         initialized = false;
     }
 
     void Init() 
     {
-        LIMITED_METHOD_CONTRACT;
+        //LIMITED_METHOD_CONTRACT;
         LARGE_INTEGER time;
         if (!QueryPerformanceCounter(&time))
             time.QuadPart = GetTickCount();
@@ -86,7 +98,7 @@ public:
 
     void Init(int Seed) 
     {
-        LIMITED_METHOD_CONTRACT;
+        //LIMITED_METHOD_CONTRACT;
 
         int ii;
         int mj, mk;
@@ -117,7 +129,7 @@ public:
 
     bool IsInitialized() 
     {
-        LIMITED_METHOD_CONTRACT;
+        //LIMITED_METHOD_CONTRACT;
         return initialized;
     }
 
@@ -134,7 +146,7 @@ private:
     ==============================================================================*/
     double Sample() 
     {
-        LIMITED_METHOD_CONTRACT;
+        //LIMITED_METHOD_CONTRACT;
 
         //Including this division at the end gives us significantly improved
         //random number distribution.
@@ -143,7 +155,7 @@ private:
 
     int InternalSample() 
     {
-        LIMITED_METHOD_CONTRACT;
+        //LIMITED_METHOD_CONTRACT;
 
         int retVal;
         int locINext = inext;
@@ -167,7 +179,7 @@ private:
 
     double GetSampleForLargeRange() 
     {
-        LIMITED_METHOD_CONTRACT;
+        //LIMITED_METHOD_CONTRACT;
 
         // The distribution of double value returned by Sample 
         // is not distributed well enough for a large range.
@@ -199,7 +211,7 @@ public:
     ==============================================================================*/
     int Next() 
     {
-        LIMITED_METHOD_CONTRACT;
+        //LIMITED_METHOD_CONTRACT;
         _ASSERTE(initialized);
         return InternalSample();
     }
@@ -213,7 +225,7 @@ public:
     ==============================================================================*/
     int Next(int minValue, int maxValue) 
     {        
-        LIMITED_METHOD_CONTRACT;
+        //LIMITED_METHOD_CONTRACT;
         _ASSERTE(initialized);
         _ASSERTE(minValue < maxValue);
 
@@ -237,7 +249,7 @@ public:
     ==============================================================================*/
     int Next(int maxValue) 
     {
-        LIMITED_METHOD_CONTRACT;
+        //LIMITED_METHOD_CONTRACT;
         _ASSERTE(initialized);
         double result = Sample()*maxValue;
         _ASSERTE(result >= 0 && result < maxValue);
@@ -252,7 +264,7 @@ public:
     ==============================================================================*/
     double NextDouble() 
     {
-        LIMITED_METHOD_CONTRACT;
+        //LIMITED_METHOD_CONTRACT;
         _ASSERTE(initialized);
         double result = Sample();
         _ASSERTE(result >= 0 && result < 1);
@@ -268,7 +280,7 @@ public:
     ==============================================================================*/
     void NextBytes(__out_ecount(length) BYTE buffer[], int length)
     {
-        LIMITED_METHOD_CONTRACT;
+        //LIMITED_METHOD_CONTRACT;
         _ASSERTE(initialized);
         for (int i=0; i<length; i++) {
             buffer[i]=(BYTE)(InternalSample()%(256)); 

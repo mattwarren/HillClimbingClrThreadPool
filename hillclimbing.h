@@ -18,6 +18,7 @@
 
 #include "complex.h"
 #include "random.h"
+#include <stdio.h>
 
 enum HillClimbingStateTransition 
 {
@@ -31,7 +32,6 @@ enum HillClimbingStateTransition
     ThreadTimedOut, //used by ThreadpoolMgr
     Undefined,
 };
-
 
 class HillClimbing	
 {
@@ -89,9 +89,28 @@ struct HillClimbingLogEntry
     float LastHistoryMean;
 };
 
-GARY_DECL(HillClimbingLogEntry, HillClimbingLog, HillClimbingLogCapacity);
-GVAL_DECL(int, HillClimbingLogFirstIndex);
-GVAL_DECL(int, HillClimbingLogSize);
-typedef DPTR(HillClimbingLogEntry) PTR_HillClimbingLogEntry;
+//GARY_DECL(HillClimbingLogEntry, HillClimbingLog, HillClimbingLogCapacity);
+extern HillClimbingLogEntry HillClimbingLog[HillClimbingLogCapacity];
+//GVAL_DECL(int, HillClimbingLogFirstIndex);
+extern int HillClimbingLogFirstIndex;
+//GVAL_DECL(int, HillClimbingLogSize);
+extern int HillClimbingLogSize;
+//typedef DPTR(HillClimbingLogEntry) PTR_HillClimbingLogEntry;
+typedef HillClimbingLogEntry *PTR_HillClimbingLogEntry;
+
+// Taken from win32threadpool.h (just the bits we need)
+const int CpuUtilizationHigh = 95;                    // remove threads when above this
+const int CpuUtilizationLow = 80;                    // inject more threads if below this
+
+class ThreadpoolMgr
+{
+private:
+
+public:
+	static LONG MinLimitTotalWorkerThreads;         // same as MinLimitTotalCPThreads
+	static LONG MaxLimitTotalWorkerThreads;
+	static LONG cpuUtilization;
+	static HillClimbing HillClimbingInstance;
+};
 
 #endif

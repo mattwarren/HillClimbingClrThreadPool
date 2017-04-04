@@ -17,9 +17,9 @@
 // TODO: write an essay about how/why this works.  Maybe put it in BotR?
 //
 
-#include "common.h"
+#include <windef.h>
+
 #include "hillclimbing.h"
-#include "win32threadpool.h"
 
 //
 // Default compilation mode is /fp:precise, which disables fp intrinsics. This causes us to pull in FP stuff (sin,cos,etc.) from
@@ -30,33 +30,64 @@
 #pragma float_control(precise, off)
 #endif
 
-
-
 const double pi = 3.141592653589793;
+
+LONG ThreadpoolMgr::MinLimitTotalWorkerThreads;
+LONG ThreadpoolMgr::MaxLimitTotalWorkerThreads;
+LONG ThreadpoolMgr::cpuUtilization;
+HillClimbing ThreadpoolMgr::HillClimbingInstance;
 
 void HillClimbing::Initialize()
 {
-    CONTRACTL
-    {
-        THROWS;
-        GC_NOTRIGGER;
-        MODE_ANY;
-    }
-    CONTRACTL_END;
+    //CONTRACTL
+    //{
+    //    THROWS;
+    //    GC_NOTRIGGER;
+    //    MODE_ANY;
+    //}
+    //CONTRACTL_END;
+    
+    // RETAIL_CONFIG_DWORD_INFO(..) values taken from clrconfigvalues.h 
 
-    m_wavePeriod = CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_WavePeriod);
-    m_maxThreadWaveMagnitude = CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_MaxWaveMagnitude);
-    m_threadMagnitudeMultiplier = (double)CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_WaveMagnitudeMultiplier) / 100.0;
-    m_samplesToMeasure = m_wavePeriod * (int)CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_WaveHistorySize);
-    m_targetThroughputRatio = (double)CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_Bias) / 100.0;
-    m_targetSignalToNoiseRatio = (double)CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_TargetSignalToNoiseRatio) / 100.0;
-    m_maxChangePerSecond = (double)CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_MaxChangePerSecond);
-    m_maxChangePerSample = (double)CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_MaxChangePerSample);
-    m_sampleIntervalLow = CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_SampleIntervalLow);
-    m_sampleIntervalHigh = CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_SampleIntervalHigh);
-    m_throughputErrorSmoothingFactor = (double)CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_ErrorSmoothingFactor) / 100.0;
-    m_gainExponent = (double)CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_GainExponent) / 100.0;
-    m_maxSampleError = (double)CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_MaxSampleErrorPercent) / 100.0;
+    // RETAIL_CONFIG_DWORD_INFO(INTERNAL_HillClimbing_WavePeriod, W("HillClimbing_WavePeriod"), 4, "");
+    m_wavePeriod = 4; // CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_WavePeriod);
+
+    //RETAIL_CONFIG_DWORD_INFO(INTERNAL_HillClimbing_MaxWaveMagnitude, W("HillClimbing_MaxWaveMagnitude"), 20, "");
+    m_maxThreadWaveMagnitude = 20; // CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_MaxWaveMagnitude);
+
+    //RETAIL_CONFIG_DWORD_INFO(INTERNAL_HillClimbing_WaveMagnitudeMultiplier, W("HillClimbing_WaveMagnitudeMultiplier"), 100, "");
+    m_threadMagnitudeMultiplier = 100 / 100.0; // (double)CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_WaveMagnitudeMultiplier) / 100.0;
+
+    //RETAIL_CONFIG_DWORD_INFO(INTERNAL_HillClimbing_WaveHistorySize, W("HillClimbing_WaveHistorySize"), 8, "");
+    m_samplesToMeasure = m_wavePeriod * 8; // (int)CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_WaveHistorySize);
+
+    //RETAIL_CONFIG_DWORD_INFO(INTERNAL_HillClimbing_Bias, W("HillClimbing_Bias"), 15, "The 'cost' of a thread.  0 means drive for increased throughput regardless of thread count; higher values bias more against higher thread counts.");
+    m_targetThroughputRatio = 15 / 100.0; // (double)CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_Bias) / 100.0;
+
+    //RETAIL_CONFIG_DWORD_INFO(INTERNAL_HillClimbing_TargetSignalToNoiseRatio, W("HillClimbing_TargetSignalToNoiseRatio"), 300, "");
+    m_targetSignalToNoiseRatio = 300 / 100.0; // (double)CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_TargetSignalToNoiseRatio) / 100.0;
+
+    //RETAIL_CONFIG_DWORD_INFO(INTERNAL_HillClimbing_MaxChangePerSecond, W("HillClimbing_MaxChangePerSecond"), 4, "");
+    m_maxChangePerSecond = 4; // (double)CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_MaxChangePerSecond);
+
+    //RETAIL_CONFIG_DWORD_INFO(INTERNAL_HillClimbing_MaxChangePerSample, W("HillClimbing_MaxChangePerSample"), 20, "");
+    m_maxChangePerSample = 20; // (double)CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_MaxChangePerSample);
+
+    //RETAIL_CONFIG_DWORD_INFO(INTERNAL_HillClimbing_SampleIntervalLow, W("HillClimbing_SampleIntervalLow"), 10, "");
+    m_sampleIntervalLow = 10; // CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_SampleIntervalLow);
+
+    //RETAIL_CONFIG_DWORD_INFO(INTERNAL_HillClimbing_SampleIntervalHigh, W("HillClimbing_SampleIntervalHigh"), 200, "");
+    m_sampleIntervalHigh = 200; // CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_SampleIntervalHigh);
+
+    //RETAIL_CONFIG_DWORD_INFO(INTERNAL_HillClimbing_ErrorSmoothingFactor, W("HillClimbing_ErrorSmoothingFactor"), 1, "");
+    m_throughputErrorSmoothingFactor = 1 / 100.0; // (double)CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_ErrorSmoothingFactor) / 100.0;
+
+    //RETAIL_CONFIG_DWORD_INFO(INTERNAL_HillClimbing_GainExponent, W("HillClimbing_GainExponent"), 200, "The exponent to apply to the gain, times 100.  100 means to use linear gain, higher values will enhance large moves and damp small ones.");
+    m_gainExponent = 200 / 100.0; // (double)CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_GainExponent) / 100.0;
+
+    //RETAIL_CONFIG_DWORD_INFO(INTERNAL_HillClimbing_MaxSampleErrorPercent, W("HillClimbing_MaxSampleErrorPercent"), 15, "");
+    m_maxSampleError = 15 / 100.0; // (double)CLRConfig::GetConfigValue(CLRConfig::INTERNAL_HillClimbing_MaxSampleErrorPercent) / 100.0;
+
     m_currentControlSetting = 0;
     m_totalSamples = 0;
     m_lastThreadCount = 0;
@@ -71,14 +102,15 @@ void HillClimbing::Initialize()
 
     // seed our random number generator with the CLR instance ID and the process ID, to avoid correlations with other CLR ThreadPool instances.
 #ifndef DACCESS_COMPILE
-    m_randomIntervalGenerator.Init(((int)GetClrInstanceId() << 16) ^ (int)GetCurrentProcessId());
+    //m_randomIntervalGenerator.Init(((int)GetClrInstanceId() << 16) ^ (int)GetCurrentProcessId());
+    m_randomIntervalGenerator.Init(((int)1 << 16) ^ (int)GetCurrentProcessId());
 #endif
     m_currentSampleInterval = m_randomIntervalGenerator.Next(m_sampleIntervalLow, m_sampleIntervalHigh+1);
 }
 
 int HillClimbing::Update(int currentThreadCount, double sampleDuration, int numCompletions, int* pNewSampleInterval)
 {
-    LIMITED_METHOD_CONTRACT;
+    //LIMITED_METHOD_CONTRACT;
 
 #ifdef DACCESS_COMPILE
     return 1;
@@ -143,7 +175,7 @@ int HillClimbing::Update(int currentThreadCount, double sampleDuration, int numC
     // Add the current thread count and throughput sample to our history
     //
     double throughput = (double)numCompletions / sampleDuration;
-    FireEtwThreadPoolWorkerThreadAdjustmentSample(throughput, GetClrInstanceId());
+    //FireEtwThreadPoolWorkerThreadAdjustmentSample(throughput, GetClrInstanceId());
 
     int sampleIndex = m_totalSamples % m_samplesToMeasure;
     m_samples[sampleIndex] = throughput;
@@ -307,18 +339,18 @@ int HillClimbing::Update(int currentThreadCount, double sampleDuration, int numC
     //
     // Record these numbers for posterity
     //
-    FireEtwThreadPoolWorkerThreadAdjustmentStats(
-        sampleDuration, 
-        throughput, 
-        threadWaveComponent.r, 
-        throughputWaveComponent.r, 
-        throughputErrorEstimate, 
-        m_averageThroughputNoise,
-        ratio.r,
-        confidence,
-        m_currentControlSetting, 
-        (unsigned short)newThreadWaveMagnitude, 
-        GetClrInstanceId());
+    //FireEtwThreadPoolWorkerThreadAdjustmentStats(
+    //    sampleDuration, 
+    //    throughput, 
+    //    threadWaveComponent.r, 
+    //    throughputWaveComponent.r, 
+    //    throughputErrorEstimate, 
+    //    m_averageThroughputNoise,
+    //    ratio.r,
+    //    confidence,
+    //    m_currentControlSetting, 
+    //    (unsigned short)newThreadWaveMagnitude, 
+    //    GetClrInstanceId());
 
     //
     // If all of this caused an actual change in thread count, log that as well.
@@ -347,7 +379,7 @@ int HillClimbing::Update(int currentThreadCount, double sampleDuration, int numC
 
 void HillClimbing::ForceChange(int newThreadCount, HillClimbingStateTransition transition)
 {
-    LIMITED_METHOD_CONTRACT;
+    //LIMITED_METHOD_CONTRACT;
 
     if (newThreadCount != m_lastThreadCount)
     {
@@ -359,7 +391,7 @@ void HillClimbing::ForceChange(int newThreadCount, HillClimbingStateTransition t
 
 void HillClimbing::ChangeThreadCount(int newThreadCount, HillClimbingStateTransition transition)
 {
-    LIMITED_METHOD_CONTRACT;
+    //LIMITED_METHOD_CONTRACT;
 
     m_lastThreadCount = newThreadCount;
     m_currentSampleInterval = m_randomIntervalGenerator.Next(m_sampleIntervalLow, m_sampleIntervalHigh+1);
@@ -369,15 +401,16 @@ void HillClimbing::ChangeThreadCount(int newThreadCount, HillClimbingStateTransi
     m_completionsSinceLastChange = 0;
 }
 
-
-GARY_IMPL(HillClimbingLogEntry, HillClimbingLog, HillClimbingLogCapacity);
-GVAL_IMPL(int, HillClimbingLogFirstIndex);
-GVAL_IMPL(int, HillClimbingLogSize);
-
+//GARY_IMPL(HillClimbingLogEntry, HillClimbingLog, HillClimbingLogCapacity);
+HillClimbingLogEntry HillClimbingLog[HillClimbingLogCapacity];
+//GVAL_IMPL(int, HillClimbingLogFirstIndex);
+int HillClimbingLogFirstIndex;
+//GVAL_IMPL(int, HillClimbingLogSize);
+int HillClimbingLogSize;
 
 void HillClimbing::LogTransition(int threadCount, double throughput, HillClimbingStateTransition transition)
 {
-    LIMITED_METHOD_CONTRACT;
+    //LIMITED_METHOD_CONTRACT;
 
 #ifndef DACCESS_COMPILE
     int index = (HillClimbingLogFirstIndex + HillClimbingLogSize) % HillClimbingLogCapacity;
@@ -399,18 +432,33 @@ void HillClimbing::LogTransition(int threadCount, double throughput, HillClimbin
 
     HillClimbingLogSize++;
 
-    FireEtwThreadPoolWorkerThreadAdjustmentAdjustment(
+    /*FireEtwThreadPoolWorkerThreadAdjustmentAdjustment(
         throughput, 
         threadCount,
         transition,
-        GetClrInstanceId());
+        GetClrInstanceId());*/
+    //enum HillClimbingStateTransition
+    //{
+    //  Warmup,
+    //  Initializing,
+    //  RandomMove,
+    //  ClimbingMove,
+    //  ChangePoint,
+    //  Stabilizing,
+    //  Starvation, //used by ThreadpoolMgr
+    //  ThreadTimedOut, //used by ThreadpoolMgr
+    //  Undefined,
+    //};
+    printf(
+        "FireEtwThreadPoolWorkerThreadAdjustmentAdjustment: throughput = %.2lf, threadCount = %i, transition = %s\n", 
+        throughput, threadCount, transition == 0 ? "Warmup" : (transition == 1 ? "Initializing" : "Other"));
 
 #endif //DACCESS_COMPILE
 }
 
 Complex HillClimbing::GetWaveComponent(double* samples, int sampleCount, double period)
 {
-    LIMITED_METHOD_CONTRACT;
+    //LIMITED_METHOD_CONTRACT;
 
     _ASSERTE(sampleCount >= period); //can't measure a wave that doesn't fit
     _ASSERTE(period >= 2); //can't measure above the Nyquist frequency

@@ -39,19 +39,19 @@ public:
 
 inline Complex operator+(Complex left, Complex right)
 {
-    LIMITED_METHOD_CONTRACT;
+    //LIMITED_METHOD_CONTRACT;
     return Complex(left.r + right.r, left.i + right.i);
 }
 
 inline Complex operator-(Complex left, Complex right)
 {
-    LIMITED_METHOD_CONTRACT;
+    //LIMITED_METHOD_CONTRACT;
     return Complex(left.r - right.r, left.i - right.i);
 }
 
 inline Complex operator*(Complex left, Complex right)
 {
-    LIMITED_METHOD_CONTRACT;
+    //LIMITED_METHOD_CONTRACT;
     return Complex(
         left.r * right.r - left.i * right.i,
         left.r * right.i + left.i * right.r);
@@ -59,7 +59,7 @@ inline Complex operator*(Complex left, Complex right)
 
 inline Complex operator/(Complex left, Complex right)
 {
-    LIMITED_METHOD_CONTRACT;
+    //LIMITED_METHOD_CONTRACT;
     double denom = right.r * right.r + right.i * right.i;
     return Complex(
         (left.r * right.r + left.i * right.i) / denom,
@@ -68,7 +68,7 @@ inline Complex operator/(Complex left, Complex right)
 
 inline double abs(Complex c)
 {
-    LIMITED_METHOD_CONTRACT;
+    //LIMITED_METHOD_CONTRACT;
     return sqrt(c.r * c.r + c.i * c.i);
 }
 
