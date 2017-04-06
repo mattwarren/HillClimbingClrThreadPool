@@ -48,3 +48,6 @@ Temporary Items
 
 x64/*
 bin/*
+*.user
+*.opendb
+*.db

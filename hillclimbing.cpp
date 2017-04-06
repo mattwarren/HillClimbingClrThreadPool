@@ -32,8 +32,10 @@
 
 const double pi = 3.141592653589793;
 
-LONG ThreadpoolMgr::MinLimitTotalWorkerThreads;
-LONG ThreadpoolMgr::MaxLimitTotalWorkerThreads;
+// The real Min/Max values are calculated depending on '# of CPUs' and 'Adress Space Size' 
+// See DWORD GetDefaultMaxLimitWorkerThreads(DWORD minLimit) in win32threadpool.cpp for more info
+LONG ThreadpoolMgr::MinLimitTotalWorkerThreads = 2;
+LONG ThreadpoolMgr::MaxLimitTotalWorkerThreads = 1000;
 LONG ThreadpoolMgr::cpuUtilization;
 HillClimbing ThreadpoolMgr::HillClimbingInstance;
 
@@ -176,6 +178,8 @@ int HillClimbing::Update(int currentThreadCount, double sampleDuration, int numC
     //
     double throughput = (double)numCompletions / sampleDuration;
     //FireEtwThreadPoolWorkerThreadAdjustmentSample(throughput, GetClrInstanceId());
+	printf("FireEtwThreadPoolWorkerThreadAdjustmentSample: throughput = %.3lf (numCompletions = %ld, sampleDuration = %.3lf)\n", 
+		   throughput, numCompletions, sampleDuration);
 
     int sampleIndex = m_totalSamples % m_samplesToMeasure;
     m_samples[sampleIndex] = throughput;
@@ -272,7 +276,6 @@ int HillClimbing::Update(int currentThreadCount, double sampleDuration, int numC
                 confidence = (abs(threadWaveComponent) / noiseForConfidence) / m_targetSignalToNoiseRatio;
             else
                 confidence = 1.0; //there is no noise!
-
         }
     }
 
@@ -351,6 +354,7 @@ int HillClimbing::Update(int currentThreadCount, double sampleDuration, int numC
     //    m_currentControlSetting, 
     //    (unsigned short)newThreadWaveMagnitude, 
     //    GetClrInstanceId());
+	//printf("FireEtwThreadPoolWorkerThreadAdjustmentStats: sampleDuration = ")
 
     //
     // If all of this caused an actual change in thread count, log that as well.
@@ -451,7 +455,7 @@ void HillClimbing::LogTransition(int threadCount, double throughput, HillClimbin
     //};
     printf(
         "FireEtwThreadPoolWorkerThreadAdjustmentAdjustment: throughput = %.2lf, threadCount = %i, transition = %s\n", 
-        throughput, threadCount, transition == 0 ? "Warmup" : (transition == 1 ? "Initializing" : "Other"));
+        throughput, threadCount, transition == 0 ? "Warmup" : (transition == 1 ? "Initializing" : (transition == 3 ? "ClimbingMove" : "Other")));
 
 #endif //DACCESS_COMPILE
 }
