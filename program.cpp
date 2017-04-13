@@ -82,9 +82,9 @@ int main()
 			double randomNoise = randomGenerator.NextDouble() / 100.0 * 5; // [0..1) -> [0..0.01) -> [0..0.05)
 			fprintf(fp, "%i,%.3lf,%d\n", timer, (double)min(currentWorkLoad, currentThreadCount) * (0.95 + randomNoise), currentThreadCount);
 			// Calling HillClimbingInstance.Update(..) should ONLY happen when we need more threads, not all the time!!
-			if (currentThreadCount <= currentWorkLoad)
+			if (currentThreadCount != currentWorkLoad)
 			{
-				// We nievely assume that each work items takes 1 second (which is also our loop/timer length)
+				// We naively assume that each work items takes 1 second (which is also our loop/timer length)
 				// So in every loop we complete 'currentThreadCount' pieces of work
 				int numCompletions = currentThreadCount;
 				
@@ -97,20 +97,30 @@ int main()
 				{					
 					newMax = HillClimbingInstance.Update(currentThreadCount, sampleDuration, numCompletions, &threadAdjustmentInterval);
 					printf("Mode = %i, Num Completions = %i (%ld), New Max = %i (Old = %i), threadAdjustmentInterval = %i\n",
-						mode, numCompletions, totalCompletions, newMax, currentThreadCount, threadAdjustmentInterval);
+							mode, numCompletions, totalCompletions, newMax, currentThreadCount, threadAdjustmentInterval);
 
-					// don't increase more that we need to, i.e don't add more threads than are needed for our current workload
-					// TODO we never decrease the thread count, what't the best way to do this?
-					// the CLR threadpool ONLY uses the Hill-Climbing value for adding threads, never removing them
-					// It appears to just age out old threads when they've been dormant for a while (validate this!!!)
-					// **Seems** to be related to ThreadpoolMgr::ShouldWorkerKeepRunning()
-					int newThreadCount = min(newMax, currentWorkLoad); 
-					if (newThreadCount > currentThreadCount && newThreadCount != 0)
+					if (newMax > currentThreadCount)
+					{
+						// Never go beyound what we actually need (plus 1)
+						int newThreadCount = min(newMax, currentWorkLoad + 1); // + 1
+						if (newThreadCount != 0 && newThreadCount > currentThreadCount)
+						{
+							// We only ever increase by 1 at a time!
+							printf("*** INCREASING thread count, from %i -> %i (CurrentWorkLoad = %i, Hill-Climbing New Max = %i)***\n",
+									currentThreadCount, currentThreadCount + 1, currentWorkLoad, newMax);
+							currentThreadCount += 1;
+						}
+						else
+						{
+							printf("*** SHOULD HAVE INCREASED thread count, but didn't, newMax = %i, currentThreadCount = %i, currentWorkLoad = %i\n",
+									newMax, currentThreadCount, currentWorkLoad);
+						}
+					}
+					else if (newMax < (currentThreadCount - 1) && newMax != 0)
 					{						
-						printf("*** %s thread count, from %i -> %i ***\n",
-								newThreadCount > currentThreadCount ? "Increasing" : "Decreasing", 
-								currentThreadCount, newThreadCount);
-						currentThreadCount = newThreadCount;
+						printf("*** DECREASING thread count, from %i -> %i (CurrentWorkLoad = %i, Hill-Climbing New Max = %i)***\n",
+								currentThreadCount, currentThreadCount - 1, currentWorkLoad, newMax);
+						currentThreadCount -= 1;
 					}
 
 					priorCompletionCount = totalCompletions;
