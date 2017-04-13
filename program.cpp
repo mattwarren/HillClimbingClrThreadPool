@@ -24,19 +24,21 @@ int main()
 	printf("Elapsed   = %.3lf secs (%.3lf msecs)\n\n", elapsed, elapsed * 1000.0);
 
 	HillClimbingInstance.Initialize();
-	//int currentThreadCount = 0; // , numCompletions = 0;
-	//double sampleDuration = 1.0; // in seconds
 	int newMax = 0, threadAdjustmentInterval = 0;
 	long totalCompletions = 0, priorCompletionCount = 0;
 	int timer = 0, lastSampleTimer = 0;
 
 	int currentThreadCount = ThreadpoolMgr::MinLimitTotalWorkerThreads;
 	HillClimbingInstance.ForceChange(currentThreadCount, Initializing);	
+	
+	CLRRandom randomGenerator;
+	randomGenerator.Init(((int)1 << 16) ^ (int)GetCurrentProcessId());
+	
+	bool randomWorkloadJumps = false;
+	//bool randomWorkloadJumps = true;
 
 	FILE *fp;	
-	fp = fopen("results.csv", "w+");
-
-	fprintf(fp, "Throughput,# Threads\n");
+	fp = fopen(randomWorkloadJumps ? "results-random.csv" : "results-smooth.csv", "w+");	
 	for (int mode = 1; mode <= 5; mode++)
 	{
 		int currentWorkLoad = 0;
@@ -58,7 +60,20 @@ int main()
 		bool reportedMsgInWorkload = false;
 		int workLoadForSection = currentWorkLoad * 500;
 		while (workLoadForSection > 0)
-		{		
+		{
+			if (randomWorkloadJumps)
+			{
+				int randomValue = randomGenerator.Next(21); // 0 to 20
+				if (randomValue >= 19)
+				{
+					int randomChange = randomGenerator.Next(-2, 3); // i.e. -2, -1, 0, 1, 2 (not 3)
+					if (randomChange != 0)
+					{
+						printf("Changing workload from %i -> %i\n", currentWorkLoad, currentWorkLoad + randomChange);
+						currentWorkLoad += randomChange;
+					}
+				}
+			}
 			timer += 1; //tick-tock, each iteration of the loop is 1 second
 			totalCompletions += currentThreadCount;
 			workLoadForSection -= currentThreadCount;
