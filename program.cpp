@@ -39,6 +39,7 @@ int main()
 
 	FILE *fp;	
 	fp = fopen(randomWorkloadJumps ? "results-random.csv" : "results-smooth.csv", "w+");	
+	fprintf(fp, "Time,Throughput,Threads\n");
 	for (int mode = 1; mode <= 5; mode++)
 	{
 		int currentWorkLoad = 0;
@@ -77,7 +78,9 @@ int main()
 			timer += 1; //tick-tock, each iteration of the loop is 1 second
 			totalCompletions += currentThreadCount;
 			workLoadForSection -= currentThreadCount;
-			fprintf(fp, "%d,%d\n", currentWorkLoad, currentThreadCount);
+			//fprintf(fp, "%d,%d\n", min(currentWorkLoad, currentThreadCount), currentThreadCount);
+			double randomNoise = randomGenerator.NextDouble() / 100.0 * 5; // [0..1) -> [0..0.01) -> [0..0.05)
+			fprintf(fp, "%i,%.3lf,%d\n", timer, (double)min(currentWorkLoad, currentThreadCount) * (0.95 + randomNoise), currentThreadCount);
 			// Calling HillClimbingInstance.Update(..) should ONLY happen when we need more threads, not all the time!!
 			if (currentThreadCount <= currentWorkLoad)
 			{
